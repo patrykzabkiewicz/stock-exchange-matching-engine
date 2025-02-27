@@ -19,6 +19,8 @@ struct SellOrder {
 	id: u64,
 	price: u32,
 	volume: u32,
+	volume_left: u32,
+	filled: u32,
 	status: OrderStatus,
 	filler: *mut BuyOrder, // pointer to buy order that filled this sell
 }
@@ -27,6 +29,10 @@ impl SellOrder {
 	
 	/// returns volume filled
 	fn fill(&mut self, other: &mut BuyOrder) -> u32 {
+		self.filled = other.volume;
+		other.filled = self.filled;
+		self.volume_left -= other.volume;
+		other.volume -= self.volume;
 		self.filler = other;
 		self.status = OrderStatus::Filled;
 		other.status = OrderStatus::Filled;
@@ -41,6 +47,8 @@ struct BuyOrder {
 	price: u32,
 	status: OrderStatus,
 	volume: u32,
+	volume_left: u32,
+	filled: u32,
 }
 
 
@@ -60,7 +68,7 @@ fn matching(sellvec: &mut Vec<SellOrder>, bo : &mut BuyOrder) -> Vec<Trade>
 	for so in sellvec {
 		if so.price <= bo.price {
             
-			// if match then subtract volumes
+            /// fill the sell order
 			let traded_amount = so.fill(bo);
 			
 			// produce trade
@@ -86,7 +94,9 @@ fn main() {
 		id: 1,
 		price: 33,
 		volume: 1000,
+		volume_left: 1000,
 		status: OrderStatus::New,
+		filled: 0,
 		filler: ptr::null_mut(),
 	};
 	
@@ -96,6 +106,8 @@ fn main() {
         id: 2,
         price: 33,
         volume: 1000,
+        volume_left: 1000,
+        filled: 0,
         status: OrderStatus::New,
     };
     
