@@ -29,10 +29,10 @@ impl SellOrder {
 	
 	/// returns volume filled
 	fn fill(&mut self, other: &mut BuyOrder) -> u32 {
-		self.filled = other.volume;
-		other.filled = self.filled;
+		self.filled += other.volume;
+		other.filled += self.filled;
 		self.volume_left -= other.volume;
-		other.volume -= self.volume;
+		other.volume_left -= self.volume - self.volume_left;
 		self.filler = other;
 		self.status = OrderStatus::Filled;
 		other.status = OrderStatus::Filled;
