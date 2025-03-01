@@ -5,10 +5,12 @@ use std::{cmp, ptr};
    only then it is rested on the book*/
 #[derive(Clone,Copy)]
 enum OrderStatus {
-	New,
-	Filled,
-	PartiallyFilled,
-	Rested,
+	New,				// order just came in
+	Filled,				// order filled completly
+	PartiallyFilled,	// order filled only partially against another order
+	Rested,				// order rested on the book, didn't filled at all
+	Rejected,			// order was rejected after validations
+	Canceled,			// order was accepted at first, rested, and then canceled
 }
 
 /* the idea behind this is that sell order is more important then buy order
@@ -16,13 +18,14 @@ enum OrderStatus {
    so in fact we have only one loop over sell orders vector to find matching orders
    from the other side of the book */
 struct SellOrder {
-	id: u64,
-	price: u32,
-	volume: u32,
-	volume_left: u32,
-	filled: u32,
-	status: OrderStatus,
-	filler: *mut BuyOrder, // pointer to buy order that filled this sell
+	id: u64,				// id number of the order
+	price: u32,				// price limit of the order for matching
+	volume: u32,			// total volume of the order
+	concealed_volume: u32,	// concealed part of order
+	volume_left: u32,		// volume that left to match later after partially matching
+	filled: u32,			// already filled amount of order
+	status: OrderStatus,	// current, most recent status of order
+	filler: *mut BuyOrder, 	// pointer to buy order that filled this sell
 }
 
 impl SellOrder {
@@ -41,6 +44,10 @@ impl SellOrder {
 }
 
 
+/**
+	for strong typing and type safety we define a seperate type for BuyOrder
+	that is slightly different than SellOrder
+ */
 #[derive(Clone,Copy)]
 struct BuyOrder {
 	id: u64,
@@ -52,7 +59,7 @@ struct BuyOrder {
 }
 
 
-/// we need preallocated vector of trades
+#[derive(Clone,Copy)]
 struct Trade {
 	buyid: u64,
 	sellid: u64,
@@ -63,23 +70,25 @@ struct Trade {
 
 fn matching(sellvec: &mut Vec<SellOrder>, bo : &mut BuyOrder) -> Vec<Trade>
 {
+	// we assume that on avrage there will be no more than 5 trades from single
+	// matching of orders
 	let mut res: Vec<Trade> = Vec::with_capacity(5);
+	
+	let mut t: Trade = Trade {buyid: 0, sellid: 0, price: 0, volume: 0};
 	
 	for so in sellvec {
 		if so.price <= bo.price {
             
-            /// fill the sell order
+            // fill the sell order
 			let traded_amount = so.fill(bo);
 			
-			// produce trade
-			let t = Trade {
-				buyid: bo.id,
-				sellid: so.id,
-				price: so.price,
-				volume: traded_amount,
-			};
+			t.buyid = bo.id;
+			t.sellid = so.id;
+			t.price = so.price;
+			t.volume = traded_amount;
 			
-			res.push(t);
+			// push a trade to vector of trades
+			res.push(t.clone());
 		}
 	}
 	
@@ -94,6 +103,7 @@ fn main() {
 		id: 1,
 		price: 33,
 		volume: 1000,
+		concealed_volume: 0,
 		volume_left: 1000,
 		status: OrderStatus::New,
 		filled: 0,
